@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+
+_BRANCHPATH=$(git symbolic-ref -q HEAD)
+_BRANCH=${_BRANCHPATH##*/}
+
+_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+
+LOG() {
+        if [[ "$GIT_COMMIT_DETAILED_LOGGING" == "YES" ]]; then
+                echo "LOG: $*"
+        fi
+}
+
+REPLACE()
+{
+   local _TYP;   _TYP="$1"; shift
+   local _TAG;   _TAG="$1"; shift
+   local _WITH; _WITH="$1"; shift
+   local _FILE; _FILE="$1"; shift
+
+   case "$_TYP" in
+      SAS)       #  %local __DEPLOY_TAG; let __DEPLOY_TAG = %str(20190221-070-01);
+                 perl -pi -e 's/(.*)(%let\s*'"__DEPLOY_$_TAG"'\s*=\s*)(.+);/${1}${2}%str('"$_WITH"');/' "${_FILE}"
+                ;;
+      CUSTOMER) # /* __DEPLOY_TAG = %str(20190221-070-01) */
+                perl -pi -e 's/(\/\*\s*)('"__DEPLOY_$_TAG"'\s*=\s*)(.*$)/${1}${2}%str('"$_WITH"')\*\//' "${_FILE}"
+                ;;
+      *)        LOG "Undefined typ '$TYP' for file $_FILE"
+                ;;
+   esac
+
+   rm -f "${_FILE}.bak"
+}
+
+LOG "working on branch $_BRANCH"
+
+for _FILE in $(git diff-index --name-status --cached HEAD | grep -v ^D | cut -c3-)
+do
+        LOG "checking file $_FILE"
+
+        # Only examine known text files
+        if [[ "$_FILE" =~ [.](sas)$ ]]; then
+                LOG "working on file $_FILE"
+                REPLACE SAS TAG       "$_BRANCH"    "$_FILE"
+                REPLACE SAS TIMESTAMP "$_TIMESTAMP" "$_FILE"
+        fi
+
+        if [[ "$_FILE" =~ ^MA03 ]]; then
+                LOG "working on bihis-customer script  $_FILE"
+                REPLACE CUSTOMER TAG       "$_BRANCH"    "$_FILE"
+                REPLACE CUSTOMER TIMESTAMP "$_TIMESTAMP" "$_FILE"
+        fi
+done

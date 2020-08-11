@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+branchPath=$(git symbolic-ref -q HEAD)
+branchName=${branchPath##*/}
+
+if [ -n "$branchName" ]; then
+    echo "$branchName | $(cat $1)" > $1
+fi
